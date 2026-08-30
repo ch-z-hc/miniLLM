@@ -1,8 +1,7 @@
-"""把 GSM8K 的题包成 Qwen 能懂的输入。
+"""GSM8K 提示词构建与 Chat Template 封装。
 
-Qwen-Instruct 有自己的 ChatML，不直接喂裸题。
-这里先拼一句 "put final answer within \boxed{}" 的指令，再套 chat_template，
-没有模板就退化成纯文本，至少能跑。
+将原始问题包装为包含 \boxed{} 格式要求的用户指令，
+并优先通过 tokenizer 的 chat_template 渲染为 Qwen ChatML 格式。
 """
 
 from __future__ import annotations

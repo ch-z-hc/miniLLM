@@ -1,10 +1,7 @@
-"""评测入口：把 yaml、数据、模型、判分串起来。
+"""评测主流程。
 
-跑一遍就会在 results/ 留下 config、generation、metrics，
-后面 SFT/GRPO 也用同一套来比，不换尺子。
-
-  python scripts/eval.py
-  python scripts/eval.py --max_samples 100
+按配置加载数据与模型，执行批量生成，通过 verifier 完成判分与指标统计，
+并将配置快照、生成结果与指标落盘至 results 目录。
 """
 
 from __future__ import annotations

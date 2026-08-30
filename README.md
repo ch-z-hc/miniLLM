@@ -1,80 +1,79 @@
 # TinyReasoner
 
-在 8GB 显存的笔记本上，把大模型后训练的整条链路跑通。
+基于 Qwen2.5-1.5B 的全流程后训练复现项目，涵盖 Base 评测、SFT、GRPO、Test-Time Scaling 与自适应采样，面向 8GB 显存环境的可复现实现。
 
-> Base 评测 → SFT 模仿 → GRPO 试错 → Test-Time 多采样 → 自适应采样。不是为了刷分，是想完整走一遍工业里实际怎么训、怎么评、怎么省算力。
+GitHub: https://github.com/ch-z-hc/miniLLM
 
-用的是 `Qwen2.5-1.5B-Instruct` + `GSM8K`。机器是 RTX 4060 Laptop (8GB) + 32GB 内存，`bfloat16` 下模型占 3G 左右，`batch=4` 刚好能跑，不会爆显存。
+## 概述
 
-Repo: https://github.com/ch-z-hc/miniLLM
+本项目旨在完整复现大模型后训练的核心链路，而非单一技术点的验证。流程为：
 
-## 为什么做这个
+预训练（已完成，Qwen2.5-1.5B 为起点）→ SFT → GRPO → Test-Time Scaling → Adaptive Scaling
 
-很多教程只讲单点：怎么调 `transformers`、怎么跑 `GRPO`。但真实链路是连起来的——评测不准，后面训练的 `reward` 就全错；`prompt` 不统一，`SFT` 和 `GRPO` 就对不上。
+其中 SFT 负责格式与推理模式的模仿，GRPO 基于可验证奖励进行组内对比优化，Test-Time Scaling 与自适应采样在固定模型下通过增加或动态调整采样量提升效果。
 
-所以定了一个规矩：**同一套评测管线评所有模型**。`Base` 是什么分，`SFT` 和 `GRPO` 就用什么尺子量，不偷换标准。
+硬件环境为 RTX 4060 Laptop 8GB / 32GB RAM，模型以 bfloat16 加载，显存占用约 3GB，支持 batch size 4 的稳定评测与训练。
 
-## 现在能跑什么
+## 硬件与数据
 
-`Phase0` 已经跑通了。虽然 `GSM8K 20` 条上 `accuracy 0.5` 不高，但链路是干净的：
+*   模型：`Qwen2.5-1.5B-Instruct`（ModelScope 本地部署，`tmp_models/Qwen/Qwen2___5-1___5B-Instruct`）
+*   数据：GSM8K，`test.parquet` 1319 条 / `train.parquet` 7473 条，已转为本地 parquet，无需在线加载
+*   依赖：PyTorch 2.6+cu124，Transformers 4.57.6，PEFT / TRL / Accelerate
 
-```bash
-# 20条，70秒左右，看看链路通不通
-python scripts/eval.py --config configs/eval.yaml
+## 评测
 
-# 100条，跑稳一点
-python scripts/eval.py --max_samples 100
-
-# 全量 1319条
-python scripts/eval.py --max_samples 1319
-```
-
-每次跑完在 `results/eval_baseline/` 会留下四个文件：
-
-*   `config_snapshot.json` 当时用的配置
-*   `generations.jsonl` 每道题模型原样输出了什么
-*   `generations.csv` 同上，表格版好筛选
-*   `metrics.json` 分数、格式合格率、平均 token 数、耗时
-
-之前踩过一个坑：`batch=4` 时左 padding 没切对，把输入的尾巴 `within \boxed{}` 也当成生成算进去了。修了之后 `Sample 1` 才正常，这也验证了批量评测必须小心切片。
-
-## 目录长什么样
-
-```
-configs/eval.yaml        # 所有参数放这里，跑实验只改 yaml
-src/verifier.py          # 怎么从自由文本里把答案抠出来、怎么判对
-src/prompts.py           # 怎么把题包成 Qwen 的 ChatML
-src/utils.py             # 固定种子、存 json/jsonl 这些杂活
-scripts/eval.py          # 把上面串起来的总管线
-data/gsm8k/              # parquet，已经下好了，不用联网
-tmp_models/              # 本地模型，不进 git
-results/                 # 跑出来的结果
-```
-
-`AGENTS.md` 是进度本，每做完一个文件就在里面打勾，不攒着一起提交。
-
-## 怎么复现
+Phase 0 已完成，提供了统一的评测管线，用于评估 Base、SFT、GRPO 等各阶段模型。评测配置集中于 `configs/eval.yaml`，输出包含配置快照、原始生成与量化指标。
 
 ```bash
 pip install torch transformers datasets peft trl accelerate pyyaml pandas pyarrow
-# transformers 4.57.6 / torch 2.6+cu124 已验证过
+
+# 20 条快速验证
+python scripts/eval.py --config configs/eval.yaml
+
+# 100 条或全量
+python scripts/eval.py --max_samples 100
+python scripts/eval.py --max_samples 1319
 ```
 
-数据和模型都是本地 `tmp_models` 和 `data/gsm8k`，`eval.py` 不联网。`seed`、`batch`、`temperature` 全写在 `yaml` 里，`results` 里会再存一份快照。
+输出位于 `results/eval_baseline/`：
 
-## 接下来做什么
+*   `config_snapshot.json` — 本次运行的完整配置
+*   `generations.jsonl` / `generations.csv` — 每条样本的生成文本与抽取结果
+*   `metrics.json` — accuracy、boxed 率、平均生成长度、时延等指标
 
-*   [x] Phase0：评测管线跑通，能看 `Sample 0/1` 的抽取和正误
-*   [ ] Phase1：`SFT`，用 `LoRA` 教模型按 `\boxed{}` 格式输出
-*   [ ] Phase2：`GRPO`，同一题采多个答案，用可验证的 `+1/-0` 做组内对比
-*   [ ] Phase3：`Test-Time Scaling`，`N=1/4/8/16` 看 `pass@k` 和 `majority vote`
-*   [ ] 自适应采样：先采 4 个，一致就停，不一致再采，省算力
+当前 20 条贪心解码基线：accuracy 0.5，boxed_rate 0.7，平均生成长度 348 tokens。
 
-每一步做完都能跑、能看结果，失败的也会留在 `analysis/failure_cases.md`，不藏着。
+## 仓库结构
 
-## 适合谁
+```
+configs/eval.yaml        评测配置
+src/verifier.py          答案抽取与正确性判定
+src/prompts.py           提示词构建与 Chat Template 封装
+src/utils.py             随机种子、目录与序列化工具
+scripts/eval.py          评测主流程
+data/gsm8k/              GSM8K 数据
+tmp_models/              本地模型（不纳入版本控制）
+results/                 实验输出
+AGENTS.md                阶段进度与实现记录
+```
 
-想在资源有限的情况下，亲手把 `SFT -> RL` 这套东西从头到尾摸一遍的人。直接按 `AGENTS.md` 的顺序一个文件一个文件看就行。
+`AGENTS.md` 记录各阶段的文件实现状态与验证标准。
 
----
-Haoze Chen · https://github.com/ch-z-hc
+## 可复现性
+
+*   配置、随机种子、数据切分、生成参数均通过 `config_snapshot.json` 存档
+*   评测结果以 JSONL/CSV 结构化保存，支持人工抽查与后续分析
+*   训练与评测阶段共用同一套 `verifier` 与 `prompts`，保证评估标准一致
+
+## 进度
+
+*   Phase 0（Baseline 评测管线）：已完成，含批量生成左填充切片问题的修复
+*   Phase 1（SFT）：待实现，基于 LoRA 与 Transformers Trainer
+*   Phase 2（GRPO）：待实现，基于 TRL GRPOTrainer 的小规模验证
+*   Phase 3（Test-Time Scaling / Adaptive）：待实现
+
+详细的阶段清单与验证标准见 `AGENTS.md`。
+
+## 许可
+
+MIT
