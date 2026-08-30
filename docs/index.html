@@ -43,7 +43,7 @@
 
 <main>
   <h2>按顺序创建</h2>
-  <p style="font-size:14px;color:#444;margin:0">严格按依赖顺序逐文件实现，每个文件都可独立运行与验证。Phase 0（基线评测）已完成，Phase 1 SFT 已启动（<code class="inline">configs/sft.yaml</code> 已完成，默认 4×3090）。</p>
+  <p style="font-size:14px;color:#444;margin:0">严格按依赖顺序逐文件实现，每个文件都可独立运行与验证。Phase 0（基线评测）已完成，Phase 1 SFT 已启动（<code class="inline">configs/sft.yaml</code> / <code class="inline">src/data.py</code> 已完成，默认 4×3090）。</p>
 
   <div class="timeline">
     <div class="item">
@@ -113,7 +113,19 @@
     </div>
   </div>
 
-  <div class="note">下一步：<code class="inline">src/data.py</code>（parquet → ChatML <code class="inline">text</code>，处理 <code class="inline">####</code>→<code class="inline">\boxed{}</code>）。后续阶段 SFT → GRPO → Test-Time Scaling → Adaptive 均按 配置 → 源码 → 脚本 顺序推进，每完成一个文件即提交并同步更新本页；本地进度见 <code class="inline">AGENTS.md</code>（按 <code class="inline">.gitignore</code> 不入库）。</div>
+    <div class="item">
+      <div class="meta">07 · 2026-08-31 · 源码</div>
+      <h3><code>src/data.py</code></h3>
+      <p>GSM8K parquet → ChatML <code class="inline">text</code> 的 SFT 数据管线。处理 <code class="inline">####</code>→<code class="inline">\boxed{}</code>、清理 <code class="inline">&lt;&lt;...&gt;&gt;</code> 计算标记，经 Qwen <code class="inline">chat_template</code> 拼接为可直接喂给 SFTTrainer 的 <code class="inline">text</code> 列。</p>
+      <ul>
+        <li><code>format_assistant_answer</code> — 推理清理 + 追加 <code class="inline">\boxed{GT}</code></li>
+        <li><code>build_sft_text</code> — 单条 question+answer → ChatML 文本（优先 chat_template，fallback 纯文本）</li>
+        <li><code>load_sft_datasets</code> — 按 <code class="inline">configs/sft.yaml</code> 产出 HF Dataset：<code class="inline">7473 train / 200 eval</code>，最长 455 &lt; 1024</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">下一步：<code class="inline">scripts/train_sft.py</code>（PEFT LoRA + Trainer，复用 <code class="inline">src/data.py</code> 的 <code class="inline">text</code> 列）。后续 GRPO → Test-Time Scaling → Adaptive 均按 配置 → 源码 → 脚本 顺序推进，每完成一个文件即提交并同步更新本页；本地进度见 <code class="inline">AGENTS.md</code>（按 <code class="inline">.gitignore</code> 不入库）。</div>
 
   <h2>谁依赖谁</h2>
   <div class="grid">
@@ -136,6 +148,10 @@
     <div class="card">
       <h4>configs/sft.yaml</h4>
       <p>被 <code class="inline">src/data.py</code> 与 <code class="inline">scripts/train_sft.py</code> 读取。4060 单卡可冒烟，4×3090 通过 <code class="inline">accelerate launch</code> 做 DDP。</p>
+    </div>
+    <div class="card">
+      <h4>src/data.py</h4>
+      <p>被 <code class="inline">scripts/train_sft.py</code> 调用，产出含 <code class="inline">text</code> 列的 HF Dataset。复用 <code class="inline">src/prompts</code> / <code class="inline">src/verifier</code> 处理格式。</p>
     </div>
   </div>
 
