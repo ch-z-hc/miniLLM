@@ -43,7 +43,7 @@
 
 <main>
   <h2>Creation order</h2>
-  <p style="font-size:14px;color:#444;margin:0">Files were created strictly in dependency order — each file is runnable and verifiable before the next one begins. Phase 0 (Baseline evaluation) is complete.</p>
+  <p style="font-size:14px;color:#444;margin:0">Files were created strictly in dependency order — each file is runnable and verifiable before the next one begins. Phase 0 (Baseline evaluation) is complete. Phase 1 SFT has started (<code class="inline">configs/sft.yaml</code> done, default 4×3090).</p>
 
   <div class="timeline">
     <div class="item">
@@ -100,9 +100,20 @@
         <li>Verified: 20 samples, ~70s, accuracy 0.5 / boxed 0.7</li>
       </ul>
     </div>
+
+    <div class="item">
+      <div class="meta">06 · 2026-08-31 · Config</div>
+      <h3><code>configs/sft.yaml</code></h3>
+      <p>SFT training config for Qwen2.5-1.5B LoRA. Default for 4×3090 24GB (DDP); compatible with single RTX 4060 8GB by toggling 3 lines. Teaches <code class="inline">\boxed{}</code> format on GSM8K.</p>
+      <ul>
+        <li>Model: <code class="inline">tmp_models/Qwen/Qwen2___5-1___5B-Instruct</code>, <code class="inline">bfloat16</code>, <code class="inline">max_seq_length 1024</code></li>
+        <li>LoRA: <code class="inline">r 16, alpha 32, dropout 0.05</code>, targets <code class="inline">q/k/v/o + gate/up/down</code></li>
+        <li>Training: <code class="inline">per_device 4 × 4 GPU × accum 4 = eff 64</code> (single eff 16), <code class="inline">2 epochs ≈234 steps</code>, <code class="inline">lr 2e-4 cosine</code>, <code class="inline">ckpt off</code> on 3090</li>
+      </ul>
+    </div>
   </div>
 
-  <div class="note">Upcoming phases (SFT → GRPO → Test-Time Scaling → Adaptive) will follow the same order: config → source → script, each committed and pushed independently. Local progress is tracked in <code class="inline">AGENTS.md</code> (not versioned).</div>
+  <div class="note">Next: <code class="inline">src/data.py</code> (parquet → ChatML <code class="inline">text</code> with <code class="inline">####</code>→<code class="inline">\boxed{}</code>). Phases SFT → GRPO → Test-Time Scaling → Adaptive follow config → source → script, each committed with <code class="inline">docs/index.html</code> updated. Local progress is tracked in <code class="inline">AGENTS.md</code> (not versioned, per <code class="inline">.gitignore</code>).</div>
 
   <h2>What depends on what</h2>
   <div class="grid">
@@ -122,10 +133,14 @@
       <h4>src/utils.py</h4>
       <p>Used by every script for seeding and saving.</p>
     </div>
+    <div class="card">
+      <h4>configs/sft.yaml</h4>
+      <p>Read by <code class="inline">src/data.py</code> and <code class="inline">scripts/train_sft.py</code>. Single-GPU smoke on 4060, DDP on 4×3090 via <code class="inline">accelerate launch</code>.</p>
+    </div>
   </div>
 
   <h2>How to run</h2>
-  <p style="font-size:14px"><code class="inline">python scripts/eval.py --config configs/eval.yaml</code> &nbsp;·&nbsp; <code class="inline">--max_samples 100</code> &nbsp;·&nbsp; <code class="inline">--max_samples 1319</code></p>
+  <p style="font-size:14px"><code class="inline">python scripts/eval.py --config configs/eval.yaml</code> &nbsp;·&nbsp; <code class="inline">python scripts/eval.py --max_samples 100</code><br><code class="inline">accelerate launch --multi_gpu --num_processes 4 scripts/train_sft.py --config configs/sft.yaml</code> &nbsp;·&nbsp; single-GPU: <code class="inline">python scripts/train_sft.py</code> (toggle per_device1/accum16/ckpt on)</p>
   <p style="font-size:13px;color:var(--muted)">See <code class="inline">README.md</code> for hardware and reproducibility notes.</p>
 </main>
 
