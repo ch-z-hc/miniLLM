@@ -57,7 +57,7 @@ miniLLM/
 - [x] `src/verifier.py` — `extract_ground_truth` (####后) / `extract_boxed` / `extract_final_answer` / `normalize_answer` / `is_correct` (容差) — 2026-08-30 已实现并自测通过
 - [x] `src/prompts.py` — `build_gsm8k_prompt` + `apply_chat_template` (Qwen chat_template 优先，fallback 纯文本) — 2026-08-30 已实现并自测通过
 - [x] `src/utils.py` — `set_seed` / `save_jsonl` / `save_json` — 2026-08-30 已实现并自测通过（seed 固定+原子写入+load_yaml）
-- [ ] `scripts/eval.py` — 读yaml→读parquet→tokenizer batch→model.generate→decode→verifier→算 accuracy/format/avg_tokens/latency→存 results/
+- [x] `scripts/eval.py` — 读yaml→读parquet→tokenizer batch→model.generate→decode→verifier→算 accuracy/format/avg_tokens/latency→存 results/ — 2026-08-30 已实现并自测通过（20条 65s accuracy0.5 boxed0.7 左padding切片修复）
 
 验证标准：20 条能跑通，打印 Sample 0/1 的抽取与正误，再跑 100 条看稳定指标。
 
@@ -102,7 +102,8 @@ miniLLM/
 - [x] `src/verifier.py` 已实现（2026-08-30）
 - [x] `src/prompts.py` 已实现（2026-08-30，Qwen chat_template 优先+fallback，指令强制 \\boxed{}，input_ids 113<1024）
 - [x] `src/utils.py` 已实现（2026-08-30，set_seed/python/numpy/torch + save_json/jsonl 原子写入 + ensure_dir/load_yaml）
-- [ ] 下一步：实现 `scripts/eval.py`
+- [x] `scripts/eval.py` 已实现（2026-08-30，yaml→parquet→Qwen chat_template batch4→generate→verifier→metrics+generations.jsonl/csv，20条通过，Sample0/1 抽取正确，已修左padding偏移）
+- [ ] 下一步：Phase0 验证收尾或进入 Phase1 `configs/sft.yaml`
 
 ## 8. 下一步指令（给下一个对话框的 Agent）
 
