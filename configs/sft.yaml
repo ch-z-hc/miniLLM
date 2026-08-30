@@ -1,0 +1,84 @@
+# TinyReasoner - Phase 1 SFT Config
+# 用途：Qwen2.5-1.5B-Instruct 在 GSM8K 上做 LoRA-SFT，教 \boxed{} 推理格式
+# 适配：RTX 4060 Laptop 8GB / 32GB RAM / bf16 / 梯度检查点
+# 依赖：transformers 4.57 + peft 0.19 + trl(可选) + accelerate 1.13 + bitsandbytes 0.49
+
+model:
+  path: "tmp_models/Qwen/Qwen2___5-1___5B-Instruct"
+  dtype: "bfloat16"              # 8G 必用 bf16；显存吃紧可改 4bit
+  trust_remote_code: true
+  device_map: "auto"
+  # 4bit 备用（仅 dtype=4bit 时生效）
+  load_in_4bit: false
+  bnb_4bit_compute_dtype: "bfloat16"
+  # tokenizer
+  padding_side: "right"          # 训练用 right padding（与推理 left 区分）
+  use_chat_template: true        # 优先 Qwen chat_template，否则 fallback 纯文本
+  max_seq_length: 1024           # 8G 下 1024 安全；可试 1536 但需降 batch
+  truncation: true
+
+data:
+  train_path: "data/gsm8k/train.parquet"  # 7473 条
+  test_path: "data/gsm8k/test.parquet"    # 1319 条，用作 eval
+  # 调试：200 条 smoke / null 全量；eval 固定 200 条省时
+  max_train_samples: null
+  max_eval_samples: 200
+  shuffle: true
+  seed: 42
+  # SFT 格式化：question -> prompt(含 \boxed{} 指令) -> answer(含推理+boxed)
+  # answer 列已含 "<<...>>" 推理步骤，末尾 "#### 72" 需转为 "\boxed{72}" 监督信号
+  instruction: "Please solve the math problem step by step and put your final answer within \\boxed{}."
+  # 若 answer 中无 <<...>>，则直接用原始 answer 末尾真值构造 boxed 监督
+  text_column: "text"            # 供 SFTTrainer 用的拼接后文本列名
+
+lora:
+  r: 16                          # 8G 下 r=16 平衡效果/显存；可试 32
+  alpha: 32                      # alpha = 2*r 常见
+  dropout: 0.05
+  bias: "none"
+  task_type: "CAUSAL_LM"
+  # Qwen2.5 常用全量 LoRA 目标；8G 下可只开 q/k/v/o 四个以省显存，当前开全量+ckpt 仍可
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+training:
+  output_dir: "outputs/sft-qwen1.5b-gsm8k-lora"
+  # 8G 显存关键参数：batch=1 + grad_accum=16 => 有效 batch 16
+  per_device_train_batch_size: 1
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 16
+  num_train_epochs: 2            # 7473*2/16≈934 steps；小数据 2 epoch 足以学格式
+  # 若想按步数：max_steps: 1000 会覆盖 epoch
+  max_steps: -1
+  learning_rate: 2.0e-4           # LoRA 常用 1e-4~2e-4
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.03
+  weight_decay: 0.01
+  optimizer: "adamw_torch"       # 8G 够用；想更省可用 paged_adamw_8bit (需 bitsandbytes)
+  max_grad_norm: 1.0
+  bf16: true
+  fp16: false
+  gradient_checkpointing: true   # 8G 必开，省 ~30% 显存
+  # Dataloader
+  dataloader_num_workers: 0
+  # 日志与保存
+  logging_steps: 10
+  eval_strategy: "steps"         # transformers>=4.46 用 eval_strategy，旧版为 evaluation_strategy
+  eval_steps: 100
+  save_strategy: "steps"
+  save_steps: 100
+  save_total_limit: 2
+  load_best_model_at_end: false  # LoRA 场景可关；若开启需配合 metric_for_best_model
+  metric_for_best_model: "eval_loss"
+  greater_is_better: false
+  # 可复现与报告
+  seed: 42
+  report_to: "none"              # 可改 "tensorboard" / "wandb"
+  # TRL 专有（若用 SFTTrainer）
+  packing: false                 # GSM8K 短文本不打包，避免截断混淆
+  dataset_text_field: "text"
+
+reproducibility:
+  transformers_version: "4.57.6"
+  peft_version: "0.19.1"
+  dataset_version: "gsm8k parquet via requests+proxy, 7473 train / 1319 test"
+  note: "LoRA r16 alpha32 on Qwen2.5-1.5B, bfloat16+grad_ckpt, effective batch 16, cosine 2e-4"
