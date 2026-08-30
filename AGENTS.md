@@ -90,7 +90,7 @@ miniLLM/
 ## 6. 复现与记录
 
 - 每次运行把 `config_snapshot.json` + `generations.jsonl` + `metrics.json` + `generations.csv` 存 `results/<exp>/`
-- Git：每完成一个文件/阶段，做完一步验证（能运行+自测通过）后立即 `git commit -m "Phase0: implement xxx"`，再进入下一文件（不要攒多个文件一起提交）
+- Git：每完成一个文件/阶段，做完一步验证（能运行+自测通过）后立即 `git commit -m "Phase0: implement xxx"` 并 `git push` 到 `origin/master`（https://github.com/ch-z-hc/miniLLM），再进入下一文件（不要攒多个文件一起提交）
 - 失败也保留，写原因到 `analysis/failure_cases.md`
 
 ## 7. 当前进度
