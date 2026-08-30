@@ -2,7 +2,7 @@
 
 基于 Qwen2.5-1.5B 的全流程后训练复现项目，涵盖 Base 评测、SFT、GRPO、Test-Time Scaling 与自适应采样，面向 8GB 显存环境的可复现实现。
 
-GitHub: https://github.com/ch-z-hc/miniLLM
+GitHub: https://github.com/ch-z-hc/miniLLM · Docs: https://ch-z-hc.github.io/miniLLM/
 
 ## 概述
 
