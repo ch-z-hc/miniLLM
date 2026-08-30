@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TinyReasoner — File Overview</title>
+<title>TinyReasoner — 文件总览</title>
 <style>
   :root{--fg:#1a1a1a;--muted:#666;--border:#e6e6e6;--bg:#fff;--accent:#111}
   *{box-sizing:border-box}
-  body{margin:0;font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; color:var(--fg); background:var(--bg); line-height:1.6}
+  body{margin:0;font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif; color:var(--fg); background:var(--bg); line-height:1.6}
   header{max-width:780px;margin:48px auto 0;padding:0 20px}
   header h1{font-size:28px; margin:0 0 6px; letter-spacing:-0.02em}
   header p{margin:0;color:var(--muted);font-size:15px}
@@ -37,42 +37,42 @@
 <body>
 <header>
   <h1>TinyReasoner</h1>
-  <p>Walk through the full LLM post-training pipeline end to end — on 8GB VRAM.</p>
-  <p style="margin-top:8px;font-size:13px;color:#888">Qwen2.5-1.5B-Instruct · GSM8K · RTX 4060 Laptop &nbsp;|&nbsp; <a href="https://github.com/ch-z-hc/miniLLM">github.com/ch-z-hc/miniLLM</a></p>
+  <p>端到端走通 LLM 后训练全流程 — 小模型也能复现。</p>
+  <p style="margin-top:8px;font-size:13px;color:#888">Qwen2.5-1.5B-Instruct · GSM8K · 4×3090（默认）/ 兼容 RTX 4060 Laptop &nbsp;|&nbsp; <a href="https://github.com/ch-z-hc/miniLLM">github.com/ch-z-hc/miniLLM</a></p>
 </header>
 
 <main>
-  <h2>Creation order</h2>
-  <p style="font-size:14px;color:#444;margin:0">Files were created strictly in dependency order — each file is runnable and verifiable before the next one begins. Phase 0 (Baseline evaluation) is complete. Phase 1 SFT has started (<code class="inline">configs/sft.yaml</code> done, default 4×3090).</p>
+  <h2>按顺序创建</h2>
+  <p style="font-size:14px;color:#444;margin:0">严格按依赖顺序逐文件实现，每个文件都可独立运行与验证。Phase 0（基线评测）已完成，Phase 1 SFT 已启动（<code class="inline">configs/sft.yaml</code> 已完成，默认 4×3090）。</p>
 
   <div class="timeline">
     <div class="item">
-      <div class="meta">01 · 2026-08-30 · Config</div>
+      <div class="meta">01 · 2026-08-30 · 配置</div>
       <h3><code>configs/eval.yaml</code></h3>
-      <p>Single source of truth for evaluation. Defines model path and dtype, data paths, generation parameters, batch size, seed and output directory. Every run saves a snapshot to <code class="inline">results/*/config_snapshot.json</code> for reproducibility.</p>
+      <p>评测的唯一可信配置。定义模型路径与精度、数据路径、生成参数、批次大小、随机种子与输出目录。每次运行都会将快照写入 <code class="inline">results/*/config_snapshot.json</code> 以保证可复现。</p>
       <ul>
-        <li>Model: <code class="inline">tmp_models/Qwen/Qwen2___5-1___5B-Instruct</code>, <code class="inline">bfloat16</code></li>
-        <li>Data: <code class="inline">data/gsm8k/test.parquet</code>, <code class="inline">max_samples: 20</code> for smoke test</li>
-        <li>Generation: <code class="inline">max_new_tokens 512</code>, <code class="inline">do_sample false</code>, <code class="inline">batch 4</code></li>
+        <li>模型：<code class="inline">tmp_models/Qwen/Qwen2___5-1___5B-Instruct</code>，<code class="inline">bfloat16</code></li>
+        <li>数据：<code class="inline">data/gsm8k/test.parquet</code>，<code class="inline">max_samples: 20</code> 冒烟测试</li>
+        <li>生成：<code class="inline">max_new_tokens 512</code>，<code class="inline">do_sample false</code> 贪心，<code class="inline">batch 4</code></li>
       </ul>
     </div>
 
     <div class="item">
-      <div class="meta">02 · 2026-08-30 · Source</div>
+      <div class="meta">02 · 2026-08-30 · 源码</div>
       <h3><code>src/verifier.py</code></h3>
-      <p>Answer extraction and correctness check. Also serves as the reward function foundation for the later GRPO stage.</p>
+      <p>答案抽取与正误判定，同时作为后续 GRPO 阶段奖励函数的基础。</p>
       <ul>
-        <li><code>extract_ground_truth</code> — text after <code class="inline">####</code></li>
-        <li><code>extract_boxed</code> — last <code class="inline">\boxed{...}</code> occurrence</li>
-        <li><code>extract_final_answer</code> — boxed first, fallback to trailing number</li>
-        <li><code>normalize_answer / is_correct</code> — strip <code class="inline">$,%</code> and commas, tolerant numeric comparison (1e-2)</li>
+        <li><code>extract_ground_truth</code> — 抽取 <code class="inline">####</code> 后的真值</li>
+        <li><code>extract_boxed</code> — 抽取最后一次出现的 <code class="inline">\boxed{...}</code></li>
+        <li><code>extract_final_answer</code> — 优先 boxed，失败回退到末尾数字</li>
+        <li><code>normalize_answer / is_correct</code> — 去除 <code class="inline">$,%</code> 与逗号，容差 1e-2 的数值比较</li>
       </ul>
     </div>
 
     <div class="item">
-      <div class="meta">03 · 2026-08-30 · Source</div>
+      <div class="meta">03 · 2026-08-30 · 源码</div>
       <h3><code>src/prompts.py</code></h3>
-      <p>Prompt construction and Chat Template wrapping. Wraps a raw GSM8K question with a <code class="inline">\boxed{}</code> instruction and renders it via the tokenizer's Qwen ChatML template, falling back to plain text when unavailable.</p>
+      <p>提示词构造与 Chat Template 封装。将 GSM8K 原始问题加上 <code class="inline">\boxed{}</code> 格式指令，并优先通过分词器的 Qwen ChatML 模板渲染，不可用时回退到纯文本。</p>
       <ul>
         <li><code>build_gsm8k_prompt(question)</code></li>
         <li><code>apply_chat_template(tokenizer, prompt)</code></li>
@@ -80,72 +80,72 @@
     </div>
 
     <div class="item">
-      <div class="meta">04 · 2026-08-30 · Source</div>
+      <div class="meta">04 · 2026-08-30 · 源码</div>
       <h3><code>src/utils.py</code></h3>
-      <p>Shared utilities for reproducibility and persistence.</p>
+      <p>可复现与持久化的公共工具。</p>
       <ul>
-        <li><code>set_seed</code> — Python / NumPy / Torch / CUDA</li>
-        <li><code>save_json / save_jsonl</code> — atomic write via <code class="inline">.tmp</code> + replace</li>
+        <li><code>set_seed</code> — 固定 Python / NumPy / Torch / CUDA</li>
+        <li><code>save_json / save_jsonl</code> — 经 <code class="inline">.tmp</code> 原子写入后 replace</li>
         <li><code>ensure_dir / load_yaml</code></li>
       </ul>
     </div>
 
     <div class="item">
-      <div class="meta">05 · 2026-08-30 · Script</div>
+      <div class="meta">05 · 2026-08-30 · 脚本</div>
       <h3><code>scripts/eval.py</code></h3>
-      <p>End-to-end evaluation pipeline. Loads YAML and parquet, tokenizes in batches, runs <code class="inline">model.generate</code>, decodes, verifies, computes metrics and writes structured outputs. Includes the left-padding slicing fix (<code class="inline">outputs[j, padded_len:]</code>).</p>
+      <p>端到端评测管线。读取 YAML 与 parquet，分批分词，执行 <code class="inline">model.generate</code>，解码后用 verifier 判分并统计指标、落盘结构化结果。已修复左填充切片问题（<code class="inline">outputs[j, padded_len:]</code>）。</p>
       <ul>
-        <li>Input: <code class="inline">configs/eval.yaml</code> + <code class="inline">data/gsm8k/*.parquet</code></li>
-        <li>Output: <code class="inline">results/eval_baseline/{config_snapshot.json, generations.jsonl, generations.csv, metrics.json}</code></li>
-        <li>Verified: 20 samples, ~70s, accuracy 0.5 / boxed 0.7</li>
+        <li>输入：<code class="inline">configs/eval.yaml</code> + <code class="inline">data/gsm8k/*.parquet</code></li>
+        <li>输出：<code class="inline">results/eval_baseline/{config_snapshot.json, generations.jsonl, generations.csv, metrics.json}</code></li>
+        <li>已验证：20 条约 70 秒，accuracy 0.5 / boxed 0.7</li>
       </ul>
     </div>
 
     <div class="item">
-      <div class="meta">06 · 2026-08-31 · Config</div>
+      <div class="meta">06 · 2026-08-31 · 配置</div>
       <h3><code>configs/sft.yaml</code></h3>
-      <p>SFT training config for Qwen2.5-1.5B LoRA. Default for 4×3090 24GB (DDP); compatible with single RTX 4060 8GB by toggling 3 lines. Teaches <code class="inline">\boxed{}</code> format on GSM8K.</p>
+      <p>Qwen2.5-1.5B LoRA 的 SFT 训练配置。默认适配 4×3090 24GB（DDP），改 3 行即可回退到单卡 RTX 4060 8GB。在 GSM8K 上教会 <code class="inline">\boxed{}</code> 推理格式。</p>
       <ul>
-        <li>Model: <code class="inline">tmp_models/Qwen/Qwen2___5-1___5B-Instruct</code>, <code class="inline">bfloat16</code>, <code class="inline">max_seq_length 1024</code></li>
-        <li>LoRA: <code class="inline">r 16, alpha 32, dropout 0.05</code>, targets <code class="inline">q/k/v/o + gate/up/down</code></li>
-        <li>Training: <code class="inline">per_device 4 × 4 GPU × accum 4 = eff 64</code> (single eff 16), <code class="inline">2 epochs ≈234 steps</code>, <code class="inline">lr 2e-4 cosine</code>, <code class="inline">ckpt off</code> on 3090</li>
+        <li>模型：<code class="inline">tmp_models/Qwen/Qwen2___5-1___5B-Instruct</code>，<code class="inline">bfloat16</code>，<code class="inline">max_seq_length 1024</code></li>
+        <li>LoRA：<code class="inline">r 16, alpha 32, dropout 0.05</code>，目标 <code class="inline">q/k/v/o + gate/up/down</code></li>
+        <li>训练：<code class="inline">per_device 4 × 4 卡 × accum 4 = eff 64</code>（单卡 eff 16），<code class="inline">2 epoch ≈234 步</code>，<code class="inline">lr 2e-4 cosine</code>，3090 下 <code class="inline">ckpt off</code></li>
       </ul>
     </div>
   </div>
 
-  <div class="note">Next: <code class="inline">src/data.py</code> (parquet → ChatML <code class="inline">text</code> with <code class="inline">####</code>→<code class="inline">\boxed{}</code>). Phases SFT → GRPO → Test-Time Scaling → Adaptive follow config → source → script, each committed with <code class="inline">docs/index.html</code> updated. Local progress is tracked in <code class="inline">AGENTS.md</code> (not versioned, per <code class="inline">.gitignore</code>).</div>
+  <div class="note">下一步：<code class="inline">src/data.py</code>（parquet → ChatML <code class="inline">text</code>，处理 <code class="inline">####</code>→<code class="inline">\boxed{}</code>）。后续阶段 SFT → GRPO → Test-Time Scaling → Adaptive 均按 配置 → 源码 → 脚本 顺序推进，每完成一个文件即提交并同步更新本页；本地进度见 <code class="inline">AGENTS.md</code>（按 <code class="inline">.gitignore</code> 不入库）。</div>
 
-  <h2>What depends on what</h2>
+  <h2>谁依赖谁</h2>
   <div class="grid">
     <div class="card">
       <h4>configs/eval.yaml</h4>
-      <p>Read by <code class="inline">scripts/eval.py</code> only. No other file imports it.</p>
+      <p>仅被 <code class="inline">scripts/eval.py</code> 读取。</p>
     </div>
     <div class="card">
       <h4>src/verifier.py</h4>
-      <p>Used by <code class="inline">scripts/eval.py</code> and later <code class="inline">src/rewards.py</code> (GRPO).</p>
+      <p>被 <code class="inline">scripts/eval.py</code> 与后续 <code class="inline">src/rewards.py</code>（GRPO）使用。</p>
     </div>
     <div class="card">
       <h4>src/prompts.py</h4>
-      <p>Used by <code class="inline">scripts/eval.py</code> and later <code class="inline">scripts/train_sft.py</code>.</p>
+      <p>被 <code class="inline">scripts/eval.py</code> 与后续 <code class="inline">scripts/train_sft.py</code> 使用。</p>
     </div>
     <div class="card">
       <h4>src/utils.py</h4>
-      <p>Used by every script for seeding and saving.</p>
+      <p>所有脚本共用的种子与落盘工具。</p>
     </div>
     <div class="card">
       <h4>configs/sft.yaml</h4>
-      <p>Read by <code class="inline">src/data.py</code> and <code class="inline">scripts/train_sft.py</code>. Single-GPU smoke on 4060, DDP on 4×3090 via <code class="inline">accelerate launch</code>.</p>
+      <p>被 <code class="inline">src/data.py</code> 与 <code class="inline">scripts/train_sft.py</code> 读取。4060 单卡可冒烟，4×3090 通过 <code class="inline">accelerate launch</code> 做 DDP。</p>
     </div>
   </div>
 
-  <h2>How to run</h2>
-  <p style="font-size:14px"><code class="inline">python scripts/eval.py --config configs/eval.yaml</code> &nbsp;·&nbsp; <code class="inline">python scripts/eval.py --max_samples 100</code><br><code class="inline">accelerate launch --multi_gpu --num_processes 4 scripts/train_sft.py --config configs/sft.yaml</code> &nbsp;·&nbsp; single-GPU: <code class="inline">python scripts/train_sft.py</code> (toggle per_device1/accum16/ckpt on)</p>
-  <p style="font-size:13px;color:var(--muted)">See <code class="inline">README.md</code> for hardware and reproducibility notes.</p>
+  <h2>怎么跑</h2>
+  <p style="font-size:14px"><code class="inline">python scripts/eval.py --config configs/eval.yaml</code> &nbsp;·&nbsp; <code class="inline">python scripts/eval.py --max_samples 100</code><br><code class="inline">accelerate launch --multi_gpu --num_processes 4 scripts/train_sft.py --config configs/sft.yaml</code> &nbsp;·&nbsp; 单卡：<code class="inline">python scripts/train_sft.py</code>（改 per_device1/accum16/ckpt on 即可）</p>
+  <p style="font-size:13px;color:var(--muted)">硬件与可复现说明见 <code class="inline">README.md</code>。</p>
 </main>
 
 <footer>
-  Haoze Chen · github.com/ch-z-hc · AGENTS.md is local-only and not pushed to the repository.
+  Haoze Chen · github.com/ch-z-hc · AGENTS.md 仅本地记录，按 .gitignore 不推送到仓库。
 </footer>
 </body>
 </html>
