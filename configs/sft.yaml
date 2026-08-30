@@ -1,6 +1,6 @@
 # TinyReasoner - Phase 1 SFT Config
 # 用途：Qwen2.5-1.5B-Instruct 在 GSM8K 上做 LoRA-SFT，教 \boxed{} 推理格式
-# 适配：RTX 4060 Laptop 8GB / 32GB RAM / bf16 / 梯度检查点
+# 默认：4×3090 24GB (DDP) / 兼容单卡 4060 8GB 时改回 batch1×16+ckpt
 # 依赖：transformers 4.57 + peft 0.19 + trl(可选) + accelerate 1.13 + bitsandbytes 0.49
 
 model:
@@ -14,7 +14,7 @@ model:
   # tokenizer
   padding_side: "right"          # 训练用 right padding（与推理 left 区分）
   use_chat_template: true        # 优先 Qwen chat_template，否则 fallback 纯文本
-  max_seq_length: 1024           # 8G 下 1024 安全；可试 1536 但需降 batch
+  max_seq_length: 1024           # 3090 下可试 1536/2048；4060 单卡保持 1024
   truncation: true
 
 data:
@@ -32,24 +32,25 @@ data:
   text_column: "text"            # 供 SFTTrainer 用的拼接后文本列名
 
 lora:
-  r: 16                          # 8G 下 r=16 平衡效果/显存；可试 32
-  alpha: 32                      # alpha = 2*r 常见
+  r: 16                          # 3090 可试 32；4060 保持 16
+  alpha: 32                      # alpha = 2*r
   dropout: 0.05
   bias: "none"
   task_type: "CAUSAL_LM"
-  # Qwen2.5 常用全量 LoRA 目标；8G 下可只开 q/k/v/o 四个以省显存，当前开全量+ckpt 仍可
+  # Qwen2.5 全量 LoRA；3090 24G 足够全量，4060 吃紧时可缩为 [q/k/v/o]
   target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 
 training:
   output_dir: "outputs/sft-qwen1.5b-gsm8k-lora"
-  # 8G 显存关键参数：batch=1 + grad_accum=16 => 有效 batch 16
-  per_device_train_batch_size: 1
-  per_device_eval_batch_size: 2
-  gradient_accumulation_steps: 16
-  num_train_epochs: 2            # 7473*2/16≈934 steps；小数据 2 epoch 足以学格式
+  # 默认 4×3090：per_device 4 × 4卡 × accum4 = eff 64 (单卡 eff16)
+  # 4060 单卡回退：per_device 1 / accum 16 / ckpt true
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 4
+  num_train_epochs: 2            # eff64 时 7473*2/64≈233 steps；eff16 时≈934 steps
   # 若想按步数：max_steps: 1000 会覆盖 epoch
   max_steps: -1
-  learning_rate: 2.0e-4           # LoRA 常用 1e-4~2e-4
+  learning_rate: 2.0e-4           # eff64 时可试 3e-4 线性放大；LoRA 常用 1e-4~3e-4
   lr_scheduler_type: "cosine"
   warmup_ratio: 0.03
   weight_decay: 0.01
@@ -57,9 +58,9 @@ training:
   max_grad_norm: 1.0
   bf16: true
   fp16: false
-  gradient_checkpointing: true   # 8G 必开，省 ~30% 显存
+  gradient_checkpointing: false  # 3090 24G 关掉提速；4060 单卡改 true 省显存
   # Dataloader
-  dataloader_num_workers: 0
+  dataloader_num_workers: 2      # 3090 多卡可 2，4060 单卡改 0
   # 日志与保存
   logging_steps: 10
   eval_strategy: "steps"         # transformers>=4.46 用 eval_strategy，旧版为 evaluation_strategy
@@ -81,4 +82,4 @@ reproducibility:
   transformers_version: "4.57.6"
   peft_version: "0.19.1"
   dataset_version: "gsm8k parquet via requests+proxy, 7473 train / 1319 test"
-  note: "LoRA r16 alpha32 on Qwen2.5-1.5B, bfloat16+grad_ckpt, effective batch 16, cosine 2e-4"
+  note: "default 4x3090 eff64 (per4*4*4) bf16 no-ckpt 2e-4; fallback 4060 eff16 (1*16) ckpt true"
