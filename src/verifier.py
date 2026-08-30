@@ -1,20 +1,7 @@
-"""
-src/verifier.py — GSM8K 答案抽取与判分
+"""GSM8K 判分：从模型输出里抠答案、跟真值比对。
 
-职责（被 scripts/eval.py 调用）：
-  - extract_ground_truth: 从 parquet 的 answer 字段 ".... #### 18" 抽 GT
-  - extract_boxed:        从 generation 抽 \\boxed{...}，取最后一次出现
-  - extract_final_answer: 优先 boxed，否则回退到文末数字/表达式抽取
-  - normalize_answer:     去逗号/美元/空格/百分号，统一大小写
-  - is_correct:           归一化后字符串相等，或数值容差相等
-
-设计要点：
-  - GSM8K 的 GT 形如 "#### 70,000" / "#### 3/4"，需 normalize 再比
-  - generation 可能是 Qwen Instruct 的自由格式，不强制 \\boxed，但有则优先
-  - 数值比较用容差 1e-2 级别，避免 0.30000001 这类浮点误差
-  - 无外部依赖，纯正则+字符串，便于 TRL GRPO 的 reward 复用
-
-参考：旧版 20 条 smoke accuracy 0.7 / boxed 0.85，说明该策略有效
+GSM8K 真值藏在 "#### 18" 后面，模型输出可能是自由文本，也可能是 \boxed{18}。
+这里的策略是优先抠 \boxed，最后才兜底找文末数字，GRPO 时也会复用同一套。
 """
 
 from __future__ import annotations

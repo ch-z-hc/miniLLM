@@ -1,19 +1,7 @@
-"""
-src/utils.py — 通用工具：随机种子 / 结构化落盘
+"""杂活：定种子、建目录、存 json。
 
-职责（被 scripts/eval.py 等调用）：
-  - set_seed:        一键固定 Python / NumPy / Torch / CUDA 随机性，保证可复现
-  - save_jsonl:      按行写 JSONL（generations.jsonl）
-  - save_json:       写 JSON（metrics.json / config_snapshot.json）
-  - ensure_dir:      确保输出目录存在
-  - load_yaml:       轻量读 yaml（不强制依赖 pyyaml 时可 fallback）
-
-设计要点：
-  - 遵循 AGENTS §0-4：所有实验可复现（seed/config 全记录）
-  - 遵循 AGENTS §0-5：结果存结构化数据，不只打印
-  - 无分布式/训练逻辑，仅提供 eval 管线所需的最简工具
-  - save_jsonl/save_json 均自动创建父目录，原子写入语义（先写临时后 rename 更稳，
-    当前简化为直接写，8G 单机场景足够）
+每个实验都要可复现，所以 seed 和落盘收敛到这里，
+存文件时先写 .tmp 再改名，避免中途断掉留半个文件。
 """
 
 from __future__ import annotations

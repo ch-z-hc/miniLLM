@@ -1,26 +1,10 @@
-"""
-scripts/eval.py — Phase 0 Baseline 评测管线（唯一可复现入口）
+"""评测入口：把 yaml、数据、模型、判分串起来。
 
-流程（与 AGENTS §4 对齐）：
-  读 yaml → 读 parquet → set_seed → tokenizer batch → model.generate
-       → decode → verifier(extract / is_correct) → 统计指标 → 落盘 results/
+跑一遍就会在 results/ 留下 config、generation、metrics，
+后面 SFT/GRPO 也用同一套来比，不换尺子。
 
-落盘（AGENTS §6）：
-  results/<output_dir>/
-    ├── config_snapshot.json   # 完整配置快照（可复现）
-    ├── generations.jsonl      # 每条样本的原始 generation + 抽取结果（人工抽查 30 条）
-    ├── generations.csv        # 同上，表格形式
-    └── metrics.json           # accuracy / boxed_rate / avg_tokens / latency 等
-
-复现要点：
-  - seed / config / dataset split / generation config 全记录
-  - 贪心 do_sample=false 保证可复现；Test-Time Scaling 再开采样
-  - 无手写 Trainer/分布式，仅用 Transformers + parquet
-
-用法：
-  python scripts/eval.py --config configs/eval.yaml
-  python scripts/eval.py --config configs/eval.yaml --max_samples 100
-  python scripts/eval.py --config configs/eval.yaml --output_dir results/eval_test100
+  python scripts/eval.py
+  python scripts/eval.py --max_samples 100
 """
 
 from __future__ import annotations

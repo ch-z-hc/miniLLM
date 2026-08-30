@@ -1,145 +1,80 @@
-# TinyReasoner — Qwen2.5-1.5B 全流程后训练小项目
+# TinyReasoner
 
-> **一句话：** 在 8GB 显存的笔记本上，用 Qwen2.5-1.5B 把大模型后训练全链路走通：**Base → SFT → GRPO → Test-Time Scaling → Adaptive Scaling**，可复现、可放简历/GitHub。
+在 8GB 显存的笔记本上，把大模型后训练的整条链路跑通。
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
-[![PyTorch 2.6+cu124](https://img.shields.io/badge/torch-2.6%2Bcu124-red)](https://pytorch.org/)
-[![Transformers 4.57](https://img.shields.io/badge/transformers-4.57-yellow)](https://github.com/huggingface/transformers)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+> Base 评测 → SFT 模仿 → GRPO 试错 → Test-Time 多采样 → 自适应采样。不是为了刷分，是想完整走一遍工业里实际怎么训、怎么评、怎么省算力。
 
-**Repo:** https://github.com/ch-z-hc/miniLLM
+用的是 `Qwen2.5-1.5B-Instruct` + `GSM8K`。机器是 RTX 4060 Laptop (8GB) + 32GB 内存，`bfloat16` 下模型占 3G 左右，`batch=4` 刚好能跑，不会爆显存。
 
----
+Repo: https://github.com/ch-z-hc/miniLLM
 
-## 1. 项目目标
+## 为什么做这个
 
-不是刷榜，而是**完整走通工业级后训练流水线**，每个阶段都可运行、可检查、可复现：
+很多教程只讲单点：怎么调 `transformers`、怎么跑 `GRPO`。但真实链路是连起来的——评测不准，后面训练的 `reward` 就全错；`prompt` 不统一，`SFT` 和 `GRPO` 就对不上。
 
-```
-预训练(别人已做) → SFT(模仿) → GRPO(试错/R可验证) → Test-Time Scaling(多采样) → Adaptive(动态停止)
-```
+所以定了一个规矩：**同一套评测管线评所有模型**。`Base` 是什么分，`SFT` 和 `GRPO` 就用什么尺子量，不偷换标准。
 
-*   **Base:** Qwen2.5-1.5B-Instruct 开箱评测，建立可靠 baseline
-*   **SFT:** 用高质量推理示范教 `\boxed{}` 格式，Loss 只算答案部分，LoRA 微调
-*   **GRPO:** 同一题采样 N 个答案，可验证 reward (+1/-0) 做组内对比，无需 Reward Model
-*   **Test-Time Scaling:** 固定模型，采样 N=1/4/8/16 统计 pass@k / majority vote，画 Accuracy vs Compute 曲线
-*   **Adaptive:** 先采 4 个，若答案一致度高则停，否则继续采，省算力
+## 现在能跑什么
 
-**机器约束：** RTX 4060 Laptop 8GB + 32GB RAM，bfloat16 约 3G 显存，batch=4 安全跑通。
-
-## 2. 快速开始
-
-### 环境
+`Phase0` 已经跑通了。虽然 `GSM8K 20` 条上 `accuracy 0.5` 不高，但链路是干净的：
 
 ```bash
-# torch 2.6+cu124, transformers 4.57.6, 已验证
-pip install torch transformers datasets peft trl accelerate pyyaml pandas pyarrow
-```
-
-### 数据与模型（已就位，无需在线下载）
-
-```bash
-data/gsm8k/test.parquet   # 1319 条
-data/gsm8k/train.parquet  # 7473 条
-tmp_models/Qwen/Qwen2___5-1___5B-Instruct  # ModelScope, ~2.9G
-```
-
-用 `requests+proxy` 直下 parquet，避免 `load_dataset` 网络问题。
-
-### 一键评测 Baseline
-
-```bash
-# 20 条 smoke（~70s, 3.5s/条）
+# 20条，70秒左右，看看链路通不通
 python scripts/eval.py --config configs/eval.yaml
 
-# 100 条稳定
+# 100条，跑稳一点
 python scripts/eval.py --max_samples 100
 
-# 全量 1319 条
+# 全量 1319条
 python scripts/eval.py --max_samples 1319
 ```
 
-输出到 `results/eval_baseline/`：
-```
-config_snapshot.json  # 配置快照，可复现
-generations.jsonl     # 每条原始 generation + 抽取结果（人工抽查 30 条）
-generations.csv       # 同上，表格
-metrics.json          # accuracy / boxed_rate / avg_tokens / latency
-```
+每次跑完在 `results/eval_baseline/` 会留下四个文件：
 
-**20条实测：** `accuracy 0.5 / boxed_rate 0.7 / avg_gen 348 / tokens_per_sec 99`（Qwen2.5-1.5B 贪心解码）
+*   `config_snapshot.json` 当时用的配置
+*   `generations.jsonl` 每道题模型原样输出了什么
+*   `generations.csv` 同上，表格版好筛选
+*   `metrics.json` 分数、格式合格率、平均 token 数、耗时
 
-## 3. 目录结构
+之前踩过一个坑：`batch=4` 时左 padding 没切对，把输入的尾巴 `within \boxed{}` 也当成生成算进去了。修了之后 `Sample 1` 才正常，这也验证了批量评测必须小心切片。
+
+## 目录长什么样
 
 ```
-miniLLM/
-├── AGENTS.md              # 唯一流程记录入口，逐文件打勾
-├── README.md              # 本文件
-├── configs/
-│   └── eval.yaml          # 评测配置（模型/dtype/数据/采样/batch/seed/输出）
-├── src/
-│   ├── verifier.py        # GSM8K 判卷：extract_boxed / is_correct(容差) / has_boxed
-│   ├── prompts.py         # Prompt 包装：build_gsm8k_prompt + apply_chat_template(Qwen优先)
-│   ├── utils.py           # 通用工具：set_seed / save_jsonl / save_json / ensure_dir
-│   └── rewards.py         # (Phase2) correctness + format 极简 reward
-├── scripts/
-│   ├── eval.py            # Phase0 核心管线：yaml→parquet→batch generate→verifier→metrics
-│   ├── train_sft.py       # (Phase1) PEFT LoRA + Trainer
-│   ├── train_grpo.py      # (Phase2) TRL GRPOTrainer
-│   └── test_time_scaling.py # (Phase3) pass@k / majority vote
-├── data/gsm8k/            # parquet 已就位
-├── tmp_models/            # 本地模型，不上传
-├── results/               # 每次实验结构化落盘
-└── analysis/              # failure_cases.md
+configs/eval.yaml        # 所有参数放这里，跑实验只改 yaml
+src/verifier.py          # 怎么从自由文本里把答案抠出来、怎么判对
+src/prompts.py           # 怎么把题包成 Qwen 的 ChatML
+src/utils.py             # 固定种子、存 json/jsonl 这些杂活
+scripts/eval.py          # 把上面串起来的总管线
+data/gsm8k/              # parquet，已经下好了，不用联网
+tmp_models/              # 本地模型，不进 git
+results/                 # 跑出来的结果
 ```
 
-## 4. 设计原则（AGENTS.md §0）
+`AGENTS.md` 是进度本，每做完一个文件就在里面打勾，不攒着一起提交。
 
-1.  **一次只做一个 milestone**，做完能运行、能检查
-2.  **优先成熟生态：** PyTorch / Transformers / PEFT / TRL / Accelerate，不手写 Trainer/分布式
-3.  **能用 LoRA 就不 full finetune**
-4.  **所有实验可复现：** seed / config / dataset split / checkpoint / generation config 全记录
-5.  **结果存结构化数据**（JSONL/CSV），不只打印
-6.  **不偷改 evaluation**，效果不好也保留并分析
+## 怎么复现
 
-## 5. Phase 进度
+```bash
+pip install torch transformers datasets peft trl accelerate pyyaml pandas pyarrow
+# transformers 4.57.6 / torch 2.6+cu124 已验证过
+```
 
-| Phase | 文件 | 状态 |
-|-------|------|------|
-| **Phase0 Baseline** | `configs/eval.yaml` / `src/verifier.py` / `src/prompts.py` / `src/utils.py` / `scripts/eval.py` | ✅ 已闭环（20条通过，修左padding批量切片bug） |
-| **Phase1 SFT** | `configs/sft.yaml` / `src/data.py` / `scripts/train_sft.py` | ⏳ 下一步 |
-| **Phase2 GRPO** | `src/rewards.py` / `configs/grpo.yaml` / `scripts/train_grpo.py` | ⏳ |
-| **Phase3+** | `analysis/failure_cases.md` / `test_time_scaling.py` / 自适应采样 | ⏳ |
+数据和模型都是本地 `tmp_models` 和 `data/gsm8k`，`eval.py` 不联网。`seed`、`batch`、`temperature` 全写在 `yaml` 里，`results` 里会再存一份快照。
 
-详细勾选见 `AGENTS.md`。
+## 接下来做什么
 
-## 6. 核心实现要点
+*   [x] Phase0：评测管线跑通，能看 `Sample 0/1` 的抽取和正误
+*   [ ] Phase1：`SFT`，用 `LoRA` 教模型按 `\boxed{}` 格式输出
+*   [ ] Phase2：`GRPO`，同一题采多个答案，用可验证的 `+1/-0` 做组内对比
+*   [ ] Phase3：`Test-Time Scaling`，`N=1/4/8/16` 看 `pass@k` 和 `majority vote`
+*   [ ] 自适应采样：先采 4 个，一致就停，不一致再采，省算力
 
-**评测一致性：** 同一套 `src/verifier.py` + `src/prompts.py` + `scripts/eval.py` 评所有模型 Base/SFT/GRPO，避免评估偷换。
+每一步做完都能跑、能看结果，失败的也会留在 `analysis/failure_cases.md`，不藏着。
 
-**判分容错：** 
-*   GT 用 `####` 后抽取
-*   预测优先 `\boxed{}`，否则回退文末数字
-*   归一化去 `$,%` 逗号，`is_correct` 支持 `18.0==18`、`0.33≈1/3` 容差 `1e-2`
+## 适合谁
 
-**批量生成坑（已修）：** 左 padding 时 `input_ids.shape[1]=113` 才是生成起点，`prompt_lens=[74,113]` 不能直接当切片，需用 `outputs[j, padded_len:]`，否则会把 `within \boxed{}` 当成生成。
-
-**显存友好：** `bfloat16` (~3G) + `batch=4` + `max_new_tokens=512` + `max_input_length=1024` 在 8G 卡稳定；吃紧时切 `4bit` 量化。
-
-## 7. 复现与记录
-
-每次运行自动存 `results/<exp>/{config_snapshot.json,generations.jsonl,metrics.json,generations.csv}`，`AGENTS.md` 逐文件打勾，`git commit + push` 到 `origin/master`。
-
-## 8. Roadmap
-
-*   [x] Phase0 20条 smoke 通过
-*   [ ] 100/1319 条全量 baseline
-*   [ ] SFT LoRA 训通，`train/eval loss` 曲线
-*   [ ] GRPO 小数据小步数验管线
-*   [ ] Test-Time Scaling 画 `Accuracy vs N` 曲线，对比 `Fixed N` vs `Adaptive` 的 `compute saving`
+想在资源有限的情况下，亲手把 `SFT -> RL` 这套东西从头到尾摸一遍的人。直接按 `AGENTS.md` 的顺序一个文件一个文件看就行。
 
 ---
-
-**适合谁看：** 想在有限资源下，完整理解并复刻 SFT/RLVR 后训练全流程的同学。可直接 clone 按 `AGENTS.md` 顺序逐文件实现。
-
-**联系：** https://github.com/ch-z-hc
+Haoze Chen · https://github.com/ch-z-hc

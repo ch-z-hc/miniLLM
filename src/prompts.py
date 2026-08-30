@@ -1,22 +1,8 @@
-"""
-src/prompts.py — GSM8K Prompt 构建与 Chat Template 封装
+"""把 GSM8K 的题包成 Qwen 能懂的输入。
 
-职责（被 scripts/eval.py 调用）：
-  - build_gsm8k_prompt:  把原始 question 包装为带 \\boxed{} 指令的 user content
-  - apply_chat_template: 优先用 tokenizer.chat_template (Qwen Instruct) 渲染为
-                         <|im_start|>... 格式，缺失时 fallback 到纯文本
-
-设计要点：
-  - 指令强制 \\boxed{}：便于 verifier.extract_boxed 优先抽取，也便于后续
-    RL 的 format reward；即使模型不遵守，verifier 仍有文末数字回退
-  - 与 configs/eval.yaml 的 generation.add_generation_prompt 对齐
-  - 无外部依赖，仅依赖 tokenizer.apply_chat_template（若可用）
-  - 兼容三类输入：str question / str user_content / List[Dict] messages
-
-参考：
-  - Qwen2.5-Instruct 的 chat_template 会自动注入 system: "You are Qwen..."
-    并以 <|im_start|>user / <|im_start|>assistant 包裹
-  - 旧版 20 条 smoke boxed_rate 0.85 说明该指令有效
+Qwen-Instruct 有自己的 ChatML，不直接喂裸题。
+这里先拼一句 "put final answer within \boxed{}" 的指令，再套 chat_template，
+没有模板就退化成纯文本，至少能跑。
 """
 
 from __future__ import annotations
