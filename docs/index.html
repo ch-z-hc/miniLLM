@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TinyReasoner — File Overview</title>
+<style>
+  :root{--fg:#1a1a1a;--muted:#666;--border:#e6e6e6;--bg:#fff;--accent:#111}
+  *{box-sizing:border-box}
+  body{margin:0;font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; color:var(--fg); background:var(--bg); line-height:1.6}
+  header{max-width:780px;margin:48px auto 0;padding:0 20px}
+  header h1{font-size:28px; margin:0 0 6px; letter-spacing:-0.02em}
+  header p{margin:0;color:var(--muted);font-size:15px}
+  main{max-width:780px;margin:32px auto 60px;padding:0 20px}
+  h2{font-size:18px;margin:36px 0 14px;border-bottom:1px solid var(--border);padding-bottom:8px}
+  .timeline{position:relative;margin:18px 0 0 0;padding-left:28px;border-left:2px solid var(--border)}
+  .item{position:relative;margin:0 0 22px 0}
+  .item::before{content:"";position:absolute;left:-34px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 0 0 2px var(--accent)}
+  .item .meta{font-size:12px;color:var(--muted);letter-spacing:0.04em;text-transform:uppercase}
+  .item h3{margin:4px 0 6px;font-size:15px}
+  .item h3 code{font-size:14px;background:#f5f5f5;border:1px solid var(--border);padding:1px 6px;border-radius:4px}
+  .item p{margin:0 0 8px;font-size:14px;color:#222}
+  .item ul{margin:6px 0 0 18px;padding:0;font-size:14px;color:#333}
+  .item li{margin:3px 0}
+  .note{font-size:13px;color:var(--muted);background:#fafafa;border:1px solid var(--border);padding:10px 12px;border-radius:8px;margin-top:18px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  .card{border:1px solid var(--border);border-radius:8px;padding:12px 14px;background:#fff}
+  .card h4{margin:0 0 6px;font-size:14px}
+  .card p{margin:0;font-size:13px;color:#444}
+  code.inline{background:#f5f5f5;border:1px solid var(--border);padding:1px 5px;border-radius:4px;font-size:13px}
+  footer{max-width:780px;margin:0 auto 40px;padding:0 20px;color:var(--muted);font-size:13px;border-top:1px solid var(--border);padding-top:14px}
+  a{color:#0b57d0;text-decoration:none}
+  a:hover{text-decoration:underline}
+  @media(max-width:600px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>TinyReasoner</h1>
+  <p>Walk through the full LLM post-training pipeline end to end — on 8GB VRAM.</p>
+  <p style="margin-top:8px;font-size:13px;color:#888">Qwen2.5-1.5B-Instruct · GSM8K · RTX 4060 Laptop &nbsp;|&nbsp; <a href="https://github.com/ch-z-hc/miniLLM">github.com/ch-z-hc/miniLLM</a></p>
+</header>
+
+<main>
+  <h2>Creation order</h2>
+  <p style="font-size:14px;color:#444;margin:0">Files were created strictly in dependency order — each file is runnable and verifiable before the next one begins. Phase 0 (Baseline evaluation) is complete.</p>
+
+  <div class="timeline">
+    <div class="item">
+      <div class="meta">01 · 2026-08-30 · Config</div>
+      <h3><code>configs/eval.yaml</code></h3>
+      <p>Single source of truth for evaluation. Defines model path and dtype, data paths, generation parameters, batch size, seed and output directory. Every run saves a snapshot to <code class="inline">results/*/config_snapshot.json</code> for reproducibility.</p>
+      <ul>
+        <li>Model: <code class="inline">tmp_models/Qwen/Qwen2___5-1___5B-Instruct</code>, <code class="inline">bfloat16</code></li>
+        <li>Data: <code class="inline">data/gsm8k/test.parquet</code>, <code class="inline">max_samples: 20</code> for smoke test</li>
+        <li>Generation: <code class="inline">max_new_tokens 512</code>, <code class="inline">do_sample false</code>, <code class="inline">batch 4</code></li>
+      </ul>
+    </div>
+
+    <div class="item">
+      <div class="meta">02 · 2026-08-30 · Source</div>
+      <h3><code>src/verifier.py</code></h3>
+      <p>Answer extraction and correctness check. Also serves as the reward function foundation for the later GRPO stage.</p>
+      <ul>
+        <li><code>extract_ground_truth</code> — text after <code class="inline">####</code></li>
+        <li><code>extract_boxed</code> — last <code class="inline">\boxed{...}</code> occurrence</li>
+        <li><code>extract_final_answer</code> — boxed first, fallback to trailing number</li>
+        <li><code>normalize_answer / is_correct</code> — strip <code class="inline">$,%</code> and commas, tolerant numeric comparison (1e-2)</li>
+      </ul>
+    </div>
+
+    <div class="item">
+      <div class="meta">03 · 2026-08-30 · Source</div>
+      <h3><code>src/prompts.py</code></h3>
+      <p>Prompt construction and Chat Template wrapping. Wraps a raw GSM8K question with a <code class="inline">\boxed{}</code> instruction and renders it via the tokenizer's Qwen ChatML template, falling back to plain text when unavailable.</p>
+      <ul>
+        <li><code>build_gsm8k_prompt(question)</code></li>
+        <li><code>apply_chat_template(tokenizer, prompt)</code></li>
+      </ul>
+    </div>
+
+    <div class="item">
+      <div class="meta">04 · 2026-08-30 · Source</div>
+      <h3><code>src/utils.py</code></h3>
+      <p>Shared utilities for reproducibility and persistence.</p>
+      <ul>
+        <li><code>set_seed</code> — Python / NumPy / Torch / CUDA</li>
+        <li><code>save_json / save_jsonl</code> — atomic write via <code class="inline">.tmp</code> + replace</li>
+        <li><code>ensure_dir / load_yaml</code></li>
+      </ul>
+    </div>
+
+    <div class="item">
+      <div class="meta">05 · 2026-08-30 · Script</div>
+      <h3><code>scripts/eval.py</code></h3>
+      <p>End-to-end evaluation pipeline. Loads YAML and parquet, tokenizes in batches, runs <code class="inline">model.generate</code>, decodes, verifies, computes metrics and writes structured outputs. Includes the left-padding slicing fix (<code class="inline">outputs[j, padded_len:]</code>).</p>
+      <ul>
+        <li>Input: <code class="inline">configs/eval.yaml</code> + <code class="inline">data/gsm8k/*.parquet</code></li>
+        <li>Output: <code class="inline">results/eval_baseline/{config_snapshot.json, generations.jsonl, generations.csv, metrics.json}</code></li>
+        <li>Verified: 20 samples, ~70s, accuracy 0.5 / boxed 0.7</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">Upcoming phases (SFT → GRPO → Test-Time Scaling → Adaptive) will follow the same order: config → source → script, each committed and pushed independently. Local progress is tracked in <code class="inline">AGENTS.md</code> (not versioned).</div>
+
+  <h2>What depends on what</h2>
+  <div class="grid">
+    <div class="card">
+      <h4>configs/eval.yaml</h4>
+      <p>Read by <code class="inline">scripts/eval.py</code> only. No other file imports it.</p>
+    </div>
+    <div class="card">
+      <h4>src/verifier.py</h4>
+      <p>Used by <code class="inline">scripts/eval.py</code> and later <code class="inline">src/rewards.py</code> (GRPO).</p>
+    </div>
+    <div class="card">
+      <h4>src/prompts.py</h4>
+      <p>Used by <code class="inline">scripts/eval.py</code> and later <code class="inline">scripts/train_sft.py</code>.</p>
+    </div>
+    <div class="card">
+      <h4>src/utils.py</h4>
+      <p>Used by every script for seeding and saving.</p>
+    </div>
+  </div>
+
+  <h2>How to run</h2>
+  <p style="font-size:14px"><code class="inline">python scripts/eval.py --config configs/eval.yaml</code> &nbsp;·&nbsp; <code class="inline">--max_samples 100</code> &nbsp;·&nbsp; <code class="inline">--max_samples 1319</code></p>
+  <p style="font-size:13px;color:var(--muted)">See <code class="inline">README.md</code> for hardware and reproducibility notes.</p>
+</main>
+
+<footer>
+  Haoze Chen · github.com/ch-z-hc · AGENTS.md is local-only and not pushed to the repository.
+</footer>
+</body>
+</html>

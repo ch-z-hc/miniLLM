@@ -4,6 +4,9 @@ data/
 results/
 plots/
 
+# internal progress log (local only)
+AGENTS.md
+
 # python
 __pycache__/
 *.py[cod]
