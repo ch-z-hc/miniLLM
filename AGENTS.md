@@ -54,8 +54,8 @@ miniLLM/
 目标：同一套管线评所有模型 Base/SFT/GRPO
 
 - [x] `configs/eval.yaml` — 模型路径/dtype/数据路径/采样数/batch/温度/seed/输出目录
-- [ ] `src/verifier.py` — `extract_ground_truth` (####后) / `extract_boxed` / `extract_final_answer` / `normalize_answer` / `is_correct` (容差)
-- [ ] `src/prompts.py` — `build_gsm8k_prompt` + `apply_chat_template` (Qwen chat_template 优先，fallback 纯文本)
+- [x] `src/verifier.py` — `extract_ground_truth` (####后) / `extract_boxed` / `extract_final_answer` / `normalize_answer` / `is_correct` (容差) — 2026-08-30 已实现并自测通过
+- [x] `src/prompts.py` — `build_gsm8k_prompt` + `apply_chat_template` (Qwen chat_template 优先，fallback 纯文本) — 2026-08-30 已实现并自测通过
 - [ ] `src/utils.py` — `set_seed` / `save_jsonl` / `save_json`
 - [ ] `scripts/eval.py` — 读yaml→读parquet→tokenizer batch→model.generate→decode→verifier→算 accuracy/format/avg_tokens/latency→存 results/
 
@@ -90,7 +90,7 @@ miniLLM/
 ## 6. 复现与记录
 
 - 每次运行把 `config_snapshot.json` + `generations.jsonl` + `metrics.json` + `generations.csv` 存 `results/<exp>/`
-- Git：每完成一个文件/阶段 `git commit -m "Phase0: implement verifier"`
+- Git：每完成一个文件/阶段，做完一步验证（能运行+自测通过）后立即 `git commit -m "Phase0: implement xxx"`，再进入下一文件（不要攒多个文件一起提交）
 - 失败也保留，写原因到 `analysis/failure_cases.md`
 
 ## 7. 当前进度
@@ -99,7 +99,9 @@ miniLLM/
 - [x] 模型与数据已下载（见 §2）
 - [x] Phase0 旧版已跑通 20 条（accuracy 0.7, boxed 0.85）— 已清理，待你逐文件重实现
 - [x] `configs/eval.yaml` 已实现（2026-08-30）
-- [ ] 下一步：实现 `src/verifier.py`
+- [x] `src/verifier.py` 已实现（2026-08-30）
+- [x] `src/prompts.py` 已实现（2026-08-30，Qwen chat_template 优先+fallback，指令强制 \\boxed{}，input_ids 113<1024）
+- [ ] 下一步：实现 `src/utils.py`
 
 ## 8. 下一步指令（给下一个对话框的 Agent）
 
