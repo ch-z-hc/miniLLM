@@ -1,0 +1,14 @@
+# models & data (large, reproducible via download)
+tmp_models/
+data/
+results/
+plots/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.log
+.DS_Store

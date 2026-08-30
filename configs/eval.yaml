@@ -1,0 +1,53 @@
+# TinyReasoner - Phase 0 Baseline Eval Config
+# 用途：同一套管线评所有模型 Base / SFT / GRPO，可复现、结构化存结果
+# 适配：RTX 4060 Laptop 8GB + Qwen2.5-1.5B-Instruct (bf16 ~3G) + GSM8K parquet
+
+model:
+  # 本地 ModelScope 路径（离线可用，不走 HF Hub）
+  path: "tmp_models/Qwen/Qwen2___5-1___5B-Instruct"
+  dtype: "bfloat16"          # 8G 显存必用 bf16；吃紧时可改 "4bit" 走 bitsandbytes
+  device_map: "auto"
+  trust_remote_code: true
+  # 量化备用（仅 dtype=4bit 时生效）
+  load_in_4bit: false
+  bnb_4bit_compute_dtype: "bfloat16"
+
+data:
+  test_path: "data/gsm8k/test.parquet"   # 1319 条
+  train_path: "data/gsm8k/train.parquet" # 7473 条（Phase0 评测只用 test）
+  split: "test"
+  # 调试用：20 条 smoke / 100 条稳定 / null 跑全量 1319
+  max_samples: 20
+  shuffle: false
+
+generation:
+  max_new_tokens: 512        # GSM8K 推理足够，避免过长 OOM
+  do_sample: false           # Phase0 基线用贪心，保证可复现；Test-Time Scaling 再开 true
+  temperature: 0.0           # do_sample=false 时忽略；若开采样建议 0.7
+  top_p: 1.0
+  top_k: -1                  # -1 表示不限制
+  # 多采样（Phase3+ 用）：同一题采 N 个算 pass@k / majority vote
+  num_samples_per_question: 1
+  batch_size: 4              # 8G 显存 batch=4 安全；可试 8 但需监控 OOM
+  # Qwen chat_template 相关
+  add_generation_prompt: true
+  max_input_length: 1024     # 截断过长 question，防止超窗
+
+eval:
+  seed: 42
+  output_dir: "results/eval_baseline"
+  # 每条样本的原始 generation（用于人工抽查 30 条，见 AGENTS §5）
+  save_generations: true
+  # 结构化输出（AGENTS §6 要求）
+  save_csv: true
+  save_metrics: true
+  save_config_snapshot: true
+  # 日志
+  log_interval: 10
+  print_samples: 2           # 启动时打印 Sample 0/1 的抽取与正误（验证 verifier）
+
+# 复现信息（eval.py 会原样写入 config_snapshot.json）
+reproducibility:
+  torch_dtype_note: "bfloat16 on RTX 4060, ~3G model + ~1G KV cache @ batch 4"
+  transformers_version: "4.57.6"
+  dataset_version: "gsm8k parquet via requests+proxy, no HF load_dataset"
