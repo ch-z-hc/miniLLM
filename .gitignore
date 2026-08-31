@@ -3,6 +3,7 @@ tmp_models/
 data/
 results/
 plots/
+outputs/
 
 # internal progress log (local only)
 AGENTS.md

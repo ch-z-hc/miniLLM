@@ -43,7 +43,7 @@
 
 <main>
   <h2>按顺序创建</h2>
-  <p style="font-size:14px;color:#444;margin:0">严格按依赖顺序逐文件实现，每个文件都可独立运行与验证。Phase 0（基线评测）已完成，Phase 1 SFT 已启动（<code class="inline">configs/sft.yaml</code> / <code class="inline">src/data.py</code> 已完成，默认 4×3090）。</p>
+  <p style="font-size:14px;color:#444;margin:0">严格按依赖顺序逐文件实现，每个文件都可独立运行与验证。Phase 0（基线评测）已完成，Phase 1 SFT 训练链路已打通（<code class="inline">configs/sft.yaml</code> / <code class="inline">src/data.py</code> / <code class="inline">scripts/train_sft.py</code>，默认 4×3090，单卡 4060 一键回退）。</p>
 
   <div class="timeline">
     <div class="item">
@@ -125,7 +125,20 @@
     </div>
   </div>
 
-  <div class="note">下一步：<code class="inline">scripts/train_sft.py</code>（PEFT LoRA + Trainer，复用 <code class="inline">src/data.py</code> 的 <code class="inline">text</code> 列）。后续 GRPO → Test-Time Scaling → Adaptive 均按 配置 → 源码 → 脚本 顺序推进，每完成一个文件即提交并同步更新本页；本地进度见 <code class="inline">AGENTS.md</code>（按 <code class="inline">.gitignore</code> 不入库）。</div>
+    <div class="item">
+      <div class="meta">08 · 2026-09-01 · 脚本</div>
+      <h3><code>scripts/train_sft.py</code></h3>
+      <p>Phase 1 的 LoRA-SFT 训练主脚本：PEFT + <code class="inline">transformers.Trainer</code>（本机无 trl，故不依赖）。核心是 <b>prompt 掩码</b>——按 <code class="inline">&lt;|im_start|&gt;assistant</code> 切分，prompt 段 label 置 <code class="inline">-100</code>，CrossEntropy 只算答案段。</p>
+      <ul>
+        <li><code>PromptMaskedCollator</code> — 训练 right padding，<code class="inline">input_ids</code> 补 pad、<code class="inline">labels</code> 补 -100</li>
+        <li><code>--preset 4060</code> — 单卡 8G 回退：<code class="inline">per_device 1 × accum 16 + gradient_checkpointing</code>；<code>--smoke</code> 小数据少步数验证管线</li>
+        <li>落盘 <code class="inline">config_snapshot.json / training_log.jsonl / metrics.json</code>，适配器存 <code class="inline">outputs/</code>（约 74 MB）</li>
+        <li>已验证：4060 冒烟通过，可训练参数 18.5M（1.18%），掩码自检 prompt 98 tok / 监督 98 tok，<code class="inline">eval_loss 0.58</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">下一步：<code class="inline">src/rewards.py</code>（correctness + format 可验证奖励，进入 Phase 2 GRPO）。后续 GRPO → Test-Time Scaling → Adaptive 均按 配置 → 源码 → 脚本 顺序推进，每完成一个文件即提交并同步更新本页；本地进度见 <code class="inline">AGENTS.md</code>（按 <code class="inline">.gitignore</code> 不入库）。</div>
 
   <h2>谁依赖谁</h2>
   <div class="grid">
@@ -153,10 +166,14 @@
       <h4>src/data.py</h4>
       <p>被 <code class="inline">scripts/train_sft.py</code> 调用，产出含 <code class="inline">text</code> 列的 HF Dataset。复用 <code class="inline">src/prompts</code> / <code class="inline">src/verifier</code> 处理格式。</p>
     </div>
+    <div class="card">
+      <h4>scripts/train_sft.py</h4>
+      <p>汇合 <code class="inline">configs/sft.yaml</code> + <code class="inline">src/data.py</code> + <code class="inline">src/utils.py</code>，产出 LoRA 适配器供 <code class="inline">scripts/eval.py</code> 复评，与 Phase 0 基线对比。</p>
+    </div>
   </div>
 
   <h2>怎么跑</h2>
-  <p style="font-size:14px"><code class="inline">python scripts/eval.py --config configs/eval.yaml</code> &nbsp;·&nbsp; <code class="inline">python scripts/eval.py --max_samples 100</code><br><code class="inline">accelerate launch --multi_gpu --num_processes 4 scripts/train_sft.py --config configs/sft.yaml</code> &nbsp;·&nbsp; 单卡：<code class="inline">python scripts/train_sft.py</code>（改 per_device1/accum16/ckpt on 即可）</p>
+  <p style="font-size:14px"><code class="inline">python scripts/eval.py --config configs/eval.yaml</code> &nbsp;·&nbsp; <code class="inline">python scripts/eval.py --max_samples 100</code><br><code class="inline">accelerate launch --multi_gpu --num_processes 4 scripts/train_sft.py --config configs/sft.yaml</code> &nbsp;·&nbsp; 单卡：<code class="inline">python scripts/train_sft.py --preset 4060</code> &nbsp;·&nbsp; 冒烟：<code class="inline">python scripts/train_sft.py --smoke --preset 4060</code></p>
   <p style="font-size:13px;color:var(--muted)">硬件与可复现说明见 <code class="inline">README.md</code>。</p>
 </main>
 
